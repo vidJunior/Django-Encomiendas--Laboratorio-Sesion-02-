@@ -1,10 +1,22 @@
 # Sistema de Encomiendas 📦
 
-![Encomiendas Web](media/encomiendas-web.png)
+![Dashboard del Sistema](media/dashboard.png)
 
 Este es un proyecto de gestión de encomiendas y paquetería desarrollado con **Django 6** y **PostgreSQL**, completamente contenerizado usando **Docker** y **Docker Compose**.
 
 El sistema permite rastrear envíos, manejar diferentes estados de paquetes (Pendiente, En tránsito, Entregado, Devuelto) y gestionar clientes y rutas.
+
+## 🖼️ Capturas del Sistema
+
+### Gestión de Encomiendas
+| Listado General | Registro de Nueva Encomienda |
+| :---: | :---: |
+| ![Listado](media/encomiendas.png) | ![Registro](media/encomiendas_nueva.png) |
+
+### Perfil y Seguridad
+| Vista de Usuario | Panel Administrativo |
+| :---: | :---: |
+| ![Usuario](media/encomiendas_usuario.png) | ![Admin](media/admin.png) |
 
 ## 🛠️ Tecnologías
 

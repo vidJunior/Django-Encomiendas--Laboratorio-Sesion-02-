@@ -14,9 +14,34 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+# Importamos tus vistas personalizadas
+from envios import views_auth
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
+    
+    # Rutas de autenticación personalizadas
+    path('login/', views_auth.login_view, name='login'),
+    path('logout/', views_auth.logout_view, name='logout'),
+    path('perfil/', views_auth.perfil_view, name='perfil'),
+    
+    path("", include("envios.urls")),
+    path("accounts/", include("django.contrib.auth.urls")),  # login/logout
 ]
+
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+
+# Personalización del Admin
+admin.site.site_header = 'Sistema de Gestión de Encomiendas'
+admin.site.site_title = 'Encomiendas Admin'
+admin.site.index_title = 'Panel de Administración'

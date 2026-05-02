@@ -59,13 +59,16 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],  # <- carpeta global de templates
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # processor personalizado:
+                "envios.context_processors.estadisticas_globales",
             ],
         },
     },
@@ -123,6 +126,29 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+
+# URL base para los archivos estaticos
+STATIC_URL = "static/"
+# Carpetas donde Django busca los archivos en DESARROLLO
+STATICFILES_DIRS = [
+    BASE_DIR / "static",  # <- aqui pones tus CSS, JS, imagenes
+]
+# Carpeta donde se juntan todos al hacer collectstatic (PRODUCCION)
+STATIC_ROOT = BASE_DIR / "staticfiles"
+# Archivos subidos por el usuario (formularios con FileField/ImageField)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login/"
+
+# Configuración de Sesiones
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+SESSION_COOKIE_AGE = 60 * 60 * 8  # 8 horas
+SESSION_COOKIE_SECURE = False  # Cambiar a True en producción con HTTPS
+SESSION_COOKIE_NAME = 'encomiendas_session'
