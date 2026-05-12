@@ -50,12 +50,23 @@ class EncomiendaQuerySet(models.QuerySet):
 
     def con_relaciones(self):
         """
-        Precarga las relaciones más usadas
-        (evita el problema N+1)
+        Optimiza consultas usando:
+        - select_related()
+        - prefetch_related()
+
+        Beneficio:
+        Sin optimización: 1 + N*4 queries
+        Con optimización: 2 queries constantes
         """
         return self.select_related(
+            # ── Foreign Keys (JOIN SQL) ──────────────────────
             "remitente",
             "destinatario",
             "ruta",
             "empleado_registro",
+        ).prefetch_related(
+            # ── Relaciones inversas ──────────────────────────
+            "historial",
+            # Prefetch anidado
+            "historial__empleado",
         )

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from decouple import config
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,9 +42,17 @@ INSTALLED_APPS = [
     "clientes",
     "rutas",
     "envios",
+    # Nuevas librerías de API (agregar estas 4 líneas) <-- NUEVO
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "django_filters",
+    "drf_spectacular",
+    "corsheaders",
+    "api",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # <-- NUEVO: debe ir PRIMERO
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # sirve archivos estáticos en producción
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -90,6 +99,20 @@ DATABASES = {
         "PORT": config("DB_PORT", default="5432"),
     }
 }
+
+
+# ── Configuración de Caché (Redis) ───────────────────────────────
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
+
+CACHE_TTL = 60 * 15  # 15 minutos por defecto
 
 
 # Password validation
@@ -147,8 +170,191 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 
 # Configuración de Sesiones
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_COOKIE_AGE = 60 * 60 * 8  # 8 horas
 SESSION_COOKIE_SECURE = False  # Cambiar a True en producción con HTTPS
-SESSION_COOKIE_NAME = 'encomiendas_session'
+SESSION_COOKIE_NAME = "encomiendas_session"
+
+
+# ── JWT: configuración de tokens ──────────────────────────────────
+
+SIMPLE_JWT = {
+    # Token expira en 1 hora
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    # Refresh expira en 7 días
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    # Rotar el refresh token en cada uso
+    "ROTATE_REFRESH_TOKENS": True,
+    # Authorization: Bearer <token>
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# ── CORS: permitir peticiones desde el frontend ───────────────────
+
+CORS_ALLOW_ALL_ORIGINS = True  # En desarrollo
+
+# En producción reemplazar por:
+# CORS_ALLOWED_ORIGINS = [
+#     'https://tu-frontend.com'
+# ]
+
+# ── Documentación de la API ───────────────────────────────────────
+
+SPECTACULAR_SETTINGS = {
+    # ── Metadatos principales ────────────────────────────────────
+    "TITLE": "API Sistema de Gestión de Encomiendas",
+    "DESCRIPTION": """
+    API REST para gestionar el ciclo de vida de encomiendas.
+
+    Incluye:
+    - Registro de envíos
+    - Cambio de estado
+    - Historial de movimientos
+    - Estadísticas del sistema
+    """,
+    "VERSION": "1.0.0",
+    # ── Configuración visual/documentación ───────────────────────
+    # No mostrar el schema JSON en Swagger UI
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Separar schemas request/response
+    "COMPONENT_SPLIT_REQUEST": True,
+    # Mantener el orden del router
+    "SORT_OPERATIONS": False,
+    # ── Tags agrupados en Swagger ────────────────────────────────
+    "TAGS": [
+        {
+            "name": "Encomiendas",
+            "description": "Gestión de envíos",
+        },
+        {
+            "name": "Clientes",
+            "description": "Listado de clientes activos",
+        },
+        {
+            "name": "Rutas",
+            "description": "Rutas disponibles",
+        },
+        {
+            "name": "Auth",
+            "description": "Autenticación JWT",
+        },
+    ],
+}
+
+# ── Configuración Global Django REST Framework ──────────────────
+
+REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "api.exceptions.encomiendas_exception_handler",
+    # ── Autenticación ────────────────────────────────────────────
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    # ── Permisos ─────────────────────────────────────────────────
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    # ── Throttling / Rate Limiting ───────────────────────────────
+    "DEFAULT_THROTTLE_CLASSES": [
+        # Usuarios anónimos
+        "rest_framework.throttling.AnonRateThrottle",
+        # Usuarios autenticados
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    # ── Rate limits ──────────────────────────────────────────────
+    "DEFAULT_THROTTLE_RATES": {
+        # Usuarios anónimos
+        "anon": "20/hour",
+        # Usuarios autenticados
+        "user": "500/hour",
+        # Empleados autenticados
+        "empleado": "100/min",
+        # Cambio de estado
+        "cambio_estado": "30/hour",
+        # Login
+        "login_attempt": "5/min",
+    },
+    # ── Paginación ───────────────────────────────────────────────
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 15,
+    # ── OpenAPI / Swagger ────────────────────────────────────────
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # ── Versionado de API ────────────────────────────────────────
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+    # Versiones permitidas
+    "ALLOWED_VERSIONS": [
+        "v1",
+        "v2",
+    ],
+    # Versión por defecto
+    "DEFAULT_VERSION": "v1",
+    # Nombre del parámetro de versión
+    "VERSION_PARAM": "version",
+}
+
+
+# ────────────────────────────────────────────────────────────────
+# CORS (Cross-Origin Resource Sharing)
+# ────────────────────────────────────────────────────────────────
+
+# ── Desarrollo ──────────────────────────────────────────────────
+#
+# Permitir cualquier origen
+# SOLO usar en desarrollo
+#
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+
+# ── Producción ──────────────────────────────────────────────────
+#
+# Reemplazar configuración anterior en producción
+#
+
+CORS_ALLOW_ALL_ORIGINS = False
+
+CORS_ALLOWED_ORIGINS = [
+    # Frontend producción
+    "https://encomiendas-frontend.vercel.app",
+    # Panel admin
+    "https://admin.encomiendas.pe",
+    # React local
+    "http://localhost:3000",
+    # Vite local
+    "http://localhost:5173",
+]
+
+# ── Permitir cookies JWT HttpOnly ───────────────────────────────
+
+CORS_ALLOW_CREDENTIALS = True
+
+# ── Headers permitidos ──────────────────────────────────────────
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+# ── Métodos HTTP permitidos ─────────────────────────────────────
+
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+
+# ── Configuración para Django Silk (Performance Profiler) ─────────
+# Agregar solo si DEBUG = True
+
+if DEBUG:
+    INSTALLED_APPS += ["silk"]
+    MIDDLEWARE += ["silk.middleware.SilkyMiddleware"]
+    SILKY_PYTHON_PROFILER = True
+    SILKY_META = True  # mostrar queries de silk en el panel

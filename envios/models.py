@@ -9,6 +9,8 @@ from .querysets import EncomiendaQuerySet
 
 
 class Empleado(models.Model):
+    objects = models.Manager()
+
     codigo = models.CharField(
         max_length=10,
         unique=True,

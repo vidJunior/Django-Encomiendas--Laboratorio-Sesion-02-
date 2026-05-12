@@ -9,35 +9,55 @@ El sistema permite rastrear envíos, manejar diferentes estados de paquetes (Pen
 ## 🖼️ Capturas del Sistema
 
 ### Gestión de Encomiendas
+
 | Listado General | Registro de Nueva Encomienda |
 | :---: | :---: |
 | ![Listado](media/encomiendas.png) | ![Registro](media/encomiendas_nueva.png) |
 
 ### Perfil y Seguridad
+
 | Vista de Usuario | Panel Administrativo |
 | :---: | :---: |
 | ![Usuario](media/encomiendas_usuario.png) | ![Admin](media/admin.png) |
 
-## 🛠️ Tecnologías
+### API RESTful & Documentación
 
-* **Backend:** Python 3.12, Django 6.0.4
-* **Base de Datos:** PostgreSQL 15
-* **Infraestructura:** Docker, Docker Compose
-* **Gestión de Entorno:** `python-decouple`
+![API Docs OpenAPI Swagger](media/api-docs.png)
+
+## ✨ Arquitectura y Funcionalidades (Enterprise-Grade)
+
+Este proyecto fue repotenciado como una **API REST escalable y de alto rendimiento**, incorporando estándares de la industria para soportar alta concurrencia:
+
+* **API RESTful (DRF)**: Versionamiento dinámico (`v1`, `v2`), Paginación, y Documentación Automática OpenAPI (Swagger / ReDoc).
+* **Seguridad y Autenticación**: JWT (JSON Web Tokens) con Serializadores enriquecidos y control estricto de CORS.
+* **Throttling Avanzado (Redis)**: Rate limiting granular con scopes independientes para evitar fuerza bruta (Logins) y denegación de servicio.
+* **Caching Distribuido**: Uso de caché en memoria RAM vía **Redis** para estadísticas masivas y listados de datos estáticos, invalidando las llaves proactivamente al detectar mutaciones (Write-through/Cache-aside).
+* **Optimización de Consultas SQL (Zero N+1)**: Uso intensivo de `select_related`, `prefetch_related` (anidados), y poda agresiva de columnas con `.only()`.
+* **Operaciones Transaccionales Masivas (Bulk)**: Optimización atómica (Evita N+1 INSERTs/UPDATEs) usando `ListSerializer`, `bulk_create` y `bulk_update`.
+* **Monitoreo y Profiling (Silk)**: Panel de telemetría de rendimiento y auditoría de consultas SQL interceptadas en tiempo real.
+
+## 🛠️ Stack Tecnológico
+
+* **Core**: Python 3.12, Django 6.0.4
+* **Base de Datos**: PostgreSQL 15
+* **Caché y Throttling**: Redis 7-alpine, django-redis
+* **API Framework**: Django REST Framework, djangorestframework-simplejwt, drf-spectacular
+* **Performance & DevOps**: Django Silk, Gunicorn
+* **Infraestructura**: Docker, Docker Compose
 
 ## 📁 Estructura del Proyecto
 
 ```text
 encomiendas/
+├── api/                # Lógica global de API (Autenticación, Excepciones, Throttling)
 ├── clientes/           # App de gestión de clientes
-├── config/             # Configuración principal de Django (settings, urls)
-├── envios/             # App principal para gestión de paquetes y estados
+├── config/             # Configuración principal (settings, urls, CORS, Silk)
+├── envios/             # App principal (Serializers, Viewsets, Bulk Processing)
 ├── media/              # Archivos multimedia subidos por usuarios
 ├── rutas/              # App para gestión de trayectos y logística
 ├── .env                # Variables de entorno (no incluido en repo)
-├── docker-compose.yml  # Orquestación de servicios (web, db)
-├── Dockerfile          # Instrucciones para la imagen de Django
-├── manage.py           # Script principal de Django
+├── docker-compose.yml  # Orquestación de microservicios (web, db, redis, pgadmin)
+├── Dockerfile          # Construcción de la imagen de Django
 └── requirements.txt    # Dependencias de Python
 ```
 
