@@ -81,6 +81,7 @@ class HistorialEstadoSerializer(serializers.ModelSerializer):
 
 # ── Bulk Serializer ──────────────────────────────────────────────
 
+
 class EncomiendaBulkSerializer(serializers.ListSerializer):
     """
     Serializer para operaciones masivas.
@@ -158,18 +159,28 @@ class EncomiendaBulkSerializer(serializers.ListSerializer):
 
 class EncomiendaSerializer(serializers.ModelSerializer):
     # ── Relaciones mediante IDs (lectura/escritura opcional directo) ─────────────
-    remitente = serializers.PrimaryKeyRelatedField(queryset=Cliente.objects.activos(), required=False)
+    remitente = serializers.PrimaryKeyRelatedField(
+        queryset=Cliente.objects.activos(), required=False
+    )
     destinatario = serializers.PrimaryKeyRelatedField(
         queryset=Cliente.objects.activos(), required=False
     )
-    ruta = serializers.PrimaryKeyRelatedField(queryset=Ruta.objects.activas(), required=False)
+    ruta = serializers.PrimaryKeyRelatedField(
+        queryset=Ruta.objects.activas(), required=False
+    )
 
     # ── Alias explícitos para escritura (congruencia con API v2) ───────────────
     remitente_id = serializers.PrimaryKeyRelatedField(
-        queryset=Cliente.objects.activos(), write_only=True, source="remitente", required=False
+        queryset=Cliente.objects.activos(),
+        write_only=True,
+        source="remitente",
+        required=False,
     )
     destinatario_id = serializers.PrimaryKeyRelatedField(
-        queryset=Cliente.objects.activos(), write_only=True, source="destinatario", required=False
+        queryset=Cliente.objects.activos(),
+        write_only=True,
+        source="destinatario",
+        required=False,
     )
     ruta_id = serializers.PrimaryKeyRelatedField(
         queryset=Ruta.objects.activas(), write_only=True, source="ruta", required=False
@@ -214,7 +225,6 @@ class EncomiendaSerializer(serializers.ModelSerializer):
             "observaciones",
         ]
         read_only_fields = [
-            "codigo",
             "fecha_registro",
             "fecha_entrega_real",
         ]
@@ -238,7 +248,9 @@ class EncomiendaSerializer(serializers.ModelSerializer):
         if not data.get("remitente"):
             errors["remitente"] = "El campo remitente o remitente_id es requerido."
         if not data.get("destinatario"):
-            errors["destinatario"] = "El campo destinatario o destinatario_id es requerido."
+            errors["destinatario"] = (
+                "El campo destinatario o destinatario_id es requerido."
+            )
         if not data.get("ruta"):
             errors["ruta"] = "El campo ruta o ruta_id es requerido."
 
@@ -336,6 +348,16 @@ class EncomiendaSerializer(serializers.ModelSerializer):
 
         data = data.copy() if hasattr(data, "copy") else dict(data)
 
+        # Si se envían tanto el campo principal como el campo _id,
+        # el campo principal tiene prioridad y eliminamos el de _id
+        # para evitar conflictos de sobreescritura en DRF.
+        if "remitente" in data and "remitente_id" in data:
+            data.pop("remitente_id", None)
+        if "destinatario" in data and "destinatario_id" in data:
+            data.pop("destinatario_id", None)
+        if "ruta" in data and "ruta_id" in data:
+            data.pop("ruta_id", None)
+
         # ── 1. Normalizar código ─────────────────────────────────
         # enc-2026-001 -> ENC-2026-001
         if "codigo" in data and data["codigo"]:
@@ -372,7 +394,9 @@ class EncomiendaListSerializer(EncomiendaSerializer):
     """
 
     remitente_nombre = serializers.ReadOnlyField(source="remitente.nombre_completo")
-    destinatario_nombre = serializers.ReadOnlyField(source="destinatario.nombre_completo")
+    destinatario_nombre = serializers.ReadOnlyField(
+        source="destinatario.nombre_completo"
+    )
     ruta_destino = serializers.ReadOnlyField(source="ruta.destino")
     estado_display = serializers.SerializerMethodField()
     tiene_retraso = serializers.ReadOnlyField()
@@ -543,7 +567,6 @@ class EncomiendaV2Serializer(serializers.ModelSerializer):
             "meta",
         ]
         read_only_fields = [
-            "codigo",
             "fecha_registro",
         ]
 

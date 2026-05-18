@@ -6,6 +6,8 @@ from .validators import validar_peso_positivo, validar_codigo_encomienda
 from django.core.validators import MinValueValidator, RegexValidator, ValidationError
 from django.utils import timezone
 from .querysets import EncomiendaQuerySet
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 class Empleado(models.Model):
@@ -174,32 +176,14 @@ class Encomienda(models.Model):
 
     # metodo de instancia
     def cambiar_estado(self, nuevo_estado, empleado, observacion=""):
-        """
-        Cambia el estado de la encomienda y registra el cambio
-        en HistorialEstado automáticamente.
-
-        Uso:
-            enc.cambiar_estado(
-                EstadoEnvio.EN_TRANSITO,
-                empleado=e1
-            )
-        """
-        if nuevo_estado == self.estado:
-            raise ValueError(
-                f"La encomienda ya se encuentra en estado {self.get_estado_display()}"
-            )
-
+        """Metodo sincrono del modelo que notifica al channel layer"""
+        if self.estado == nuevo_estado:
+            raise ValueError("La encomienda ya se encuentra en ese estado.")
         estado_anterior = self.estado
         self.estado = nuevo_estado
-
-        if nuevo_estado == EstadoEnvio.ENTREGADO:
-            from django.utils import timezone
-
+        if nuevo_estado == "EN":
             self.fecha_entrega_real = timezone.now().date()
-
         self.save()
-
-        # Registrar en el historial
         HistorialEstado.objects.create(
             encomienda=self,
             estado_anterior=estado_anterior,
@@ -207,8 +191,42 @@ class Encomienda(models.Model):
             empleado=empleado,
             observacion=observacion,
         )
+        # async_to_sync convierte la llamada async en sincrona
+        # Es seguro llamarlo desde un metodo sincrono del modelo
+        self._notificar_websocket(estado_anterior, nuevo_estado, empleado)
 
         return self
+
+    def _notificar_websocket(self, estado_anterior, estado_nuevo, empleado):
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return  # sin channel layer configurado (tests unitarios)
+        mensaje = {
+            "type": "encomienda_estado_cambio",
+            "encomienda_id": self.pk,
+            "codigo": self.codigo,
+            "estado_anterior": estado_anterior,
+            "estado_nuevo": estado_nuevo,
+            "empleado": str(empleado),
+            "timestamp": timezone.now().isoformat(),
+        }
+        # Notificar al grupo global (todos los empleados conectados)
+        async_to_sync(channel_layer.group_send)("encomiendas_global", mensaje)
+        # Notificar al grupo especifico de esta encomienda
+        async_to_sync(channel_layer.group_send)(f"encomienda_{self.pk}", mensaje)
+        # Actualizar el dashboard con las nuevas estadisticas
+        hoy = timezone.now().date()
+        stats = {
+            "activas": Encomienda.objects.activas().count(),
+            "en_transito": Encomienda.objects.en_transito().count(),
+            "con_retraso": Encomienda.objects.con_retraso().count(),
+            "entregadas_hoy": Encomienda.objects.filter(
+                estado="EN", fecha_entrega_real=hoy
+            ).count(),
+        }
+        async_to_sync(channel_layer.group_send)(
+            "dashboard", {"type": "dashboard_actualizar", "stats": stats}
+        )
 
     def calcular_costo(self):
         """
@@ -302,8 +320,36 @@ class Encomienda(models.Model):
 
     def save(self, *args, **kwargs):
         """Ejecutar full_clean() antes de guardar"""
+        is_created = self.pk is None
+        if not self.codigo:
+            import uuid
+
+            self.codigo = f"ENC-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
         self.full_clean()  # dispara: clean_fields() + clean()
         super().save(*args, **kwargs)
+
+        if is_created:
+            try:
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    hoy = timezone.now().date()
+                    stats = {
+                        "activas": Encomienda.objects.activas().count(),
+                        "en_transito": Encomienda.objects.en_transito().count(),
+                        "con_retraso": Encomienda.objects.con_retraso().count(),
+                        "entregadas_hoy": Encomienda.objects.filter(
+                            estado="EN", fecha_entrega_real=hoy
+                        ).count(),
+                    }
+                    async_to_sync(channel_layer.group_send)(
+                        "dashboard",
+                        {
+                            "type": "dashboard_actualizar",
+                            "stats": stats,
+                        },
+                    )
+            except Exception:
+                pass
 
     class Meta:
         db_table = "encomiendas"

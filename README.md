@@ -107,6 +107,28 @@ docker compose down
 
 *Nota: Si deseas borrar la base de datos y empezar de cero, usa `docker compose down -v`.*
 
+### 6. Ejecutar las Pruebas Unitarias (Tests)
+
+Para verificar que todos los servicios, endpoints y conexiones asíncronas de WebSockets estén funcionando correctamente, puedes ejecutar las pruebas automatizadas con pytest:
+
+* **Ejecutar la suite completa de pruebas (27 tests):**
+
+  ```bash
+  docker compose exec web pytest
+  ```
+
+* **Ejecutar solo las pruebas asíncronas de WebSockets (Channels):**
+
+  ```bash
+  docker compose exec web pytest envios/tests/test_consumers.py -v
+  ```
+
+* **Ejecutar solo las pruebas de la API REST (DRF):**
+
+  ```bash
+  docker compose exec web pytest envios/tests/test_api.py -v
+  ```
+
 ## 🌐 Acceso al Sistema
 
 Una vez que los contenedores estén corriendo, puedes acceder a:

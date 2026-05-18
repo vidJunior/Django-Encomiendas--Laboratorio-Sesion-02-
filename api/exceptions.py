@@ -81,12 +81,17 @@ def encomiendas_exception_handler(exc, context):
 
         # ── Formato estándar de respuesta ────────────────────────
 
+        original_data = response.data
         response.data = {
             "error": True,
             "code": error_code,
             "message": message,
-            "detail": response.data,
+            "detail": original_data,
         }
+        if response.status_code == status.HTTP_400_BAD_REQUEST and isinstance(
+            original_data, dict
+        ):
+            response.data.update(original_data)
 
         return response
 

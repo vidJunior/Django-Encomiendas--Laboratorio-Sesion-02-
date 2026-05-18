@@ -28,18 +28,21 @@ from django.contrib.auth.decorators import (
 # ── Vista real: dashboard del sistema ────────────────────────
 @login_required
 def dashboard(request):
-    """Vista principal del sistema con estadísticas"""
+    """
+    El template renderiza con los datos iniciales de la BD.
+    El WebSocket actualiza los contadores en tiempo real a partir de ese punto.
+    """
     hoy = timezone.now().date()
     context = {
-        "total_activas": Encomienda.objects.activas().count(),
-        "en_transito": Encomienda.objects.en_transito().count(),
-        "con_retraso": Encomienda.objects.con_retraso().count(),
-        "entregadas_hoy": Encomienda.objects.filter(
-            estado=EstadoEnvio.ENTREGADO, fecha_entrega_real=hoy
-        ).count(),
-        "ultimas": Encomienda.objects.con_relaciones()[:5],
+        "stats": {
+            "activas": Encomienda.objects.activas().count(),
+            "en_transito": Encomienda.objects.en_transito().count(),
+            "con_retraso": Encomienda.objects.con_retraso().count(),
+            "entregadas_hoy": Encomienda.objects.filter(
+                estado="EN", fecha_entrega_real=hoy
+            ).count(),
+        }
     }
-
     return render(request, "envios/dashboard.html", context)
 
 
@@ -217,3 +220,62 @@ def buscar_por_codigo(request, codigo):
     """Busca una encomienda por su código exacto"""
     enc = get_object_or_404(Encomienda, codigo=codigo)
     return redirect("encomienda_detalle", pk=enc.pk)
+
+
+import redis
+from django.http import JsonResponse
+from django.conf import settings
+
+
+def health_check(request):
+    """
+    GET /health/ Verifica que todos los servicios del sistema esten funcionando.
+    Incluye el estado de Redis y del channel layer.
+    """
+    estado = {
+        "postgres": False,
+        "redis": False,
+        "channels": False,
+    }
+    # Verificar PostgreSQL
+    try:
+        from django.db import connection
+
+        connection.ensure_connection()
+        estado["postgres"] = True
+    except Exception as e:
+        estado["postgres_error"] = str(e)
+    # Verificar Redis directamente
+    try:
+        r = redis.from_url(
+            settings.REDIS_URL,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        r.ping()
+        info = r.info()
+        estado["redis"] = True
+        estado["redis_memoria"] = info.get("used_memory_human")
+        estado["redis_clientes"] = info.get("connected_clients")
+        estado["redis_version"] = info.get("redis_version")
+    except Exception as e:
+        estado["redis_error"] = str(e)
+    # Verificar Channel Layer (publicar y recibir un mensaje de prueba)
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        cl = get_channel_layer()
+        async_to_sync(cl.group_send)("health_check", {"type": "health.ping"})
+        estado["channels"] = True
+    except Exception as e:
+        estado["channels_error"] = str(e)
+    # Contar empleados conectados
+    try:
+        r = redis.from_url(settings.REDIS_URL)
+        estado["empleados_conectados"] = r.scard("encomiendas:group:encomiendas_global")
+    except Exception:
+        estado["empleados_conectados"] = None
+    todo_ok = all([estado["postgres"], estado["redis"], estado["channels"]])
+    http_status = 200 if todo_ok else 503
+    return JsonResponse(estado, status=http_status)

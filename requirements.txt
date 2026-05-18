@@ -24,7 +24,7 @@ psycopg2-binary==2.9.12
 pycodestyle==2.14.0
 Pygments==2.20.0
 PyJWT==2.12.1
-pytest==9.0.3
+pytest==8.3.4
 pytest-django==4.8.0
 python-dateutil==2.9.0.post0
 python-decouple==3.8
@@ -37,3 +37,11 @@ sqlparse==0.5.5
 tzdata==2026.1
 uritemplate==4.2.0
 whitenoise==6.9.0
+httpx==0.28.1
+channels==4.2.0
+# Agregar: cliente de Redis para Channels
+channels-redis==4.2.1 # Agregar: cliente Python de Redis (para monitoreo directo)
+daphne==4.1.2
+pytest-asyncio==0.23.5
+
+
